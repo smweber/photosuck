@@ -26,148 +26,148 @@ FALLBACKDIR = "~/Desktop/Photo Import"
 
 ################################################################
 
-def getAutoDirs():
-    photosDir  = os.path.expanduser(PHOTOSDIR)
-    stagingDir = os.path.expanduser(STAGINGDIR)
+def get_auto_dirs():
+    photos_dir  = os.path.expanduser(PHOTOSDIR)
+    staging_dir = os.path.expanduser(STAGINGDIR)
 
     print
     print "searching for camera card"
-    cardDir = None
+    card_dir = None
     for d in os.listdir(MOUNTDIR):
         d1 = os.path.expanduser(os.path.join(MOUNTDIR, d, "DCIM"))
         if os.path.isdir(d1):
-            cardDir = d1
+            card_dir = d1
         else:
             print "couldn't find card directory: " + d1
 
-    fallbackDir = os.path.expanduser(FALLBACKDIR)
-    if cardDir is None and os.path.exists(fallbackDir):
-        cardDir = fallbackDir
-        print "no card found, using fallback import location, " + fallbackDir
+    fallback_dir = os.path.expanduser(FALLBACKDIR)
+    if card_dir is None and os.path.exists(fallback_dir):
+        card_dir = fallback_dir
+        print "no card found, using fallback import location, " + fallback_dir
 
-    if cardDir is None:
+    if card_dir is None:
         print "no card found, aborting"
         sys.exit(-1)
 
-    if not os.path.exists(stagingDir):
-        print "creating staging directory: " + stagingDir
-        os.mkdir(stagingDir)
+    if not os.path.exists(staging_dir):
+        print "creating staging directory: " + staging_dir
+        os.mkdir(staging_dir)
 
     print
-    print "using card directory: " + cardDir
-    print "    photos directory: " + photosDir
-    print "   staging directory: " + stagingDir
+    print "using card directory: " + card_dir
+    print "    photos directory: " + photos_dir
+    print "   staging directory: " + staging_dir
     print
-    return cardDir, photosDir, stagingDir
+    return card_dir, photos_dir, staging_dir
 
-def validExtensions():
+def valid_extensions():
     extensions = []
     for ext in VALIDEXT:
         extensions.append(ext.lower())
         extensions.append(ext.upper())
     return extensions
 
-def fileFingerprint(filePath):
+def file_fingerprint(file_path):
     """Return a tuple that uniquely identifies a file"""
     # Note: This used to use an MD5 of the file, but it was way too slow. So
     #       instead it grabs some arbitrary data from the middle of the file.
     #       This isn't nearly as unique as a checksum, but with file name and
     #       size it is sufficient for our purposes.
 
-    (root, fileName) = os.path.split(filePath)
+    (root, file_name) = os.path.split(file_path)
 
     #filename (before extension or "-")
-    name = fileName.split("-")[0].split(".")[0]
+    name = file_name.split("-")[0].split(".")[0]
 
     #filesize
-    fs = os.stat(filePath)
+    fs = os.stat(file_path)
     size = fs.st_size
 
     #some arbitrary file data
-    fileHandle = open(filePath, "rb")
-    fileHandle.seek(-1024, 2) # seek from end of file
-    data = fileHandle.read(16)
-    fileHandle.close()
+    file_handle = open(file_path, "rb")
+    file_handle.seek(-1024, 2) # seek from end of file
+    data = file_handle.read(16)
+    file_handle.close()
 
     return (name, size, data)
 
-def fileSetFromDir(dirPath):
-    """Return set of fingerprint/path tuples for all image files in dirPath"""
-    # Structure of returned tuple: ((name, size, data), filePath)
-    fileSet = list()
-    for root, dirs, files in os.walk(dirPath):
+def file_set_from_dir(dir_path):
+    """Return set of fingerprint/path tuples for all image files in dir_path"""
+    # Structure of returned tuple: ((name, size, data), file_path)
+    file_set = list()
+    for root, dirs, files in os.walk(dir_path):
         skipdir = False
         for ex in EXCLUDE:
             if root.find(ex) != -1:
                 skipdir = True
         if not skipdir:
             for f in files:
-                if validExtensions().count(os.path.splitext(f)[1]):
-                    filePath = os.path.join(root, f)
-                    fileSet.append((fileFingerprint(filePath), filePath))
-    return fileSet
+                if valid_extensions().count(os.path.splitext(f)[1]):
+                    file_path = os.path.join(root, f)
+                    file_set.append((file_fingerprint(file_path), file_path))
+    return file_set
 
-def compareFileSets(cardSet, photosSet):
-    """Return set of fingerprint/path tuples for files that are in cardSet but not in photosSet"""
-    outputSet = []
-    for s in cardSet:
-        inPhotosSet = False
-        for d in photosSet:
+def compare_file_sets(card_set, photos_set):
+    """Return set of fingerprint/path tuples for files that are in card_set but not in photos_set"""
+    output_set = []
+    for s in card_set:
+        in_photos_set = False
+        for d in photos_set:
             if s[0] == d[0]:
-                inPhotosSet = True
+                in_photos_set = True
                 break
-        if not inPhotosSet:
-            outputSet.append(s[1])
-    return outputSet
+        if not in_photos_set:
+            output_set.append(s[1])
+    return output_set
 
-def progressBar(width, progress, total):
+def progress_bar(width, progress, total):
     stars  = int(progress/float(total)*(width-2))
     spaces = int((total-progress)/float(total)*(width-2))
     percent = progress/float(total)*100
     bar = "[" + "="*stars + ">" + " "*spaces + "]"
     return bar, percent
 
-def printProgressBar(progress, total, filename):
-    bar, percent = progressBar(50, progress, total)
+def print_progress_bar(progress, total, filename):
+    bar, percent = progress_bar(50, progress, total)
     sys.stdout.write(" "*80 + "\r")
     sys.stdout.write("%s %2.1f%% %s\r" % (bar, percent, filename))
     sys.stdout.flush()
 
-def copyFile(sourceFile, dest, dupe=0):
+def copy_file(source_file, dest, dupe=0):
     if dupe > 0:
-        fl = os.path.splitext(os.path.split(sourceFile)[1])
+        fl = os.path.splitext(os.path.split(source_file)[1])
         fname = fl[0] + "-" + str(dupe+1) + fl[1]
     else:
-        fname = sourceFile
+        fname = source_file
 
     if os.path.exists(os.path.join(dest, os.path.split(fname)[1])):
-        existingPrint = fileFingerprint(os.path.join(dest, os.path.split(fname)[1]))
-        newPrint      = fileFingerprint(sourceFile)
-        if existingPrint == newPrint:
+        existing_print = file_fingerprint(os.path.join(dest, os.path.split(fname)[1]))
+        new_print      = file_fingerprint(source_file)
+        if existing_print == new_print:
             print "duplicate file found in source - skipping"
         else:
-            copyFile(sourceFile, dest, dupe+1)
+            copy_file(source_file, dest, dupe+1)
     else:
         if dupe > 0:
             sys.stdout.write(" "*80 + "\r")
             print "duplicate file name found - renaming to " + fname
-            shutil.copy(sourceFile, os.path.join(dest, fname))
+            shutil.copy(source_file, os.path.join(dest, fname))
         else:
             #print "copying " + fname
-            shutil.copy(sourceFile, dest)
+            shutil.copy(source_file, dest)
 
-def copyFiles(fileSet, directory):
+def copy_files(file_set, directory):
     i = 0
-    total = len(fileSet)
-    for f in fileSet:
-        printProgressBar(i, total, os.path.split(f)[1])
-        copyFile( f, directory )
+    total = len(file_set)
+    for f in file_set:
+        print_progress_bar(i, total, os.path.split(f)[1])
+        copy_file( f, directory )
         i += 1
-    printProgressBar(i, total, os.path.split(f)[1])
+    print_progress_bar(i, total, os.path.split(f)[1])
     print
 
 
-def parseOptions():
+def parse_options():
     parser = optparse.OptionParser()
 
     parser.usage = "%prog [options] card_dir photos_dir staging_dir"
@@ -187,55 +187,55 @@ def parseOptions():
 
 
 if __name__ == "__main__":
-    (options, arg, parser) = parseOptions()
+    (options, arg, parser) = parse_options()
 
     # Get directories from commandline or automatically
     if len(arg) < 1 and options.automode:
         print "running in AUTOMATIC MODE"
-        cardDir, photosDir, stagingDir = getAutoDirs()
+        card_dir, photos_dir, staging_dir = get_auto_dirs()
     elif len(arg) == 3:
-        cardDir    = arg[0]
-        photosDir  = arg[1]
-        stagingDir = arg[2]
+        card_dir    = arg[0]
+        photos_dir  = arg[1]
+        staging_dir = arg[2]
     else:
         parser.print_usage()
         sys.exit(-1)
 
     # Validate directories
-    if not os.path.isdir(cardDir):
-        print "Cannot find card directory: " + cardDir
+    if not os.path.isdir(card_dir):
+        print "Cannot find card directory: " + card_dir
         sys.exit(-1)
-    if not os.path.isdir(photosDir):
-        print "Cannot find photos directory: " + photosDir
+    if not os.path.isdir(photos_dir):
+        print "Cannot find photos directory: " + photos_dir
         sys.exit(-1)
-    if not os.path.isdir(stagingDir):
-        print "Cannot find staging directory: " + stagingDir
+    if not os.path.isdir(staging_dir):
+        print "Cannot find staging directory: " + staging_dir
         sys.exit(-1)
 
     # Perform scans
     print "scanning card"
-    cardSet = fileSetFromDir(cardDir)
-    print len(cardSet)
+    card_set = file_set_from_dir(card_dir)
+    print len(card_set)
 
     print "scanning photos directory"
-    photosSet = fileSetFromDir(photosDir)
-    print len(photosSet)
+    photos_set = file_set_from_dir(photos_dir)
+    print len(photos_set)
 
     print "scanning staging directory"
-    stagingSet = fileSetFromDir(stagingDir)
-    print len(stagingSet)
-    photosSet.extend(stagingSet)
+    staging_set = file_set_from_dir(staging_dir)
+    print len(staging_set)
+    photos_set.extend(staging_set)
 
     # Compute files to copy
     print "computing output files"
-    stagingSet = compareFileSets(cardSet, photosSet)
-    print len(stagingSet)
+    staging_set = compare_file_sets(card_set, photos_set)
+    print len(staging_set)
 
     # Do the copy if needed
-    if len(stagingSet) == 0:
+    if len(staging_set) == 0:
         print "no files to copy"
     elif options.dryrun:
         print "not copying files, this is a dry run"
     else:
         print "copying files"
-        copyFiles(stagingSet, stagingDir)
+        copy_files(staging_set, staging_dir)
